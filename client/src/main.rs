@@ -1,8 +1,8 @@
-use std::{net::TcpStream, process, io::{self, Write}};
+use std::{net::TcpStream, process, io};
 
 use retry::{delay::Fixed, retry_with_index};
 
-use file_share::{Command};
+use file_share::{Command, Share};
 
 fn main() {
     let stream = 
@@ -30,6 +30,8 @@ fn handle_connection(mut stream: TcpStream) {
     let mut buf = String::new();
 
     loop {
+        buf.clear();
+
         println!("Enter what you would like to do, run HELP for help");
 
         io::stdin().read_line(&mut buf).unwrap_or_default();
@@ -41,14 +43,29 @@ fn handle_connection(mut stream: TcpStream) {
                 continue;
             }
         };
+
+        if command.command_type().is_client() {
+            command.execute_client_side().unwrap();
+            continue;
+        }
+
+        let mut share = Share::new(command);
+
+        // Load files into the vector, or text into the string
+        match share.prepare_data() {
+            Ok(_) => (),
+            Err(error) => {
+                eprintln!("Error occured while preparing data: {error}");
+                continue;
+            }
+        }
     
-        let command = bincode::serialize(&command).unwrap();
-
-        stream.write_all(&command[..]).unwrap_or_else(|error| {
-            eprintln!("Failed to write command to tcp stream: {error}");
-            process::exit(1);
-        });
-
-        buf.clear();
+        match share.write_to_stream(&mut stream) {
+            Ok(_) => (),
+            Err(error) => {
+                eprintln!("Unresolvable error: {error}");
+                process::exit(1);
+            }
+        }
     }
 }

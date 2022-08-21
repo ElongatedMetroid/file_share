@@ -1,4 +1,6 @@
-use std::{process, fs::File, io::Read};
+#![feature(core_intrinsics)]
+
+use std::{process, fs::File, io::{Read, Write}, mem, net::TcpStream};
 
 use serde::{Deserialize, Serialize};
 
@@ -148,6 +150,28 @@ impl Share {
             _ => eprintln!("Nothing to prepare"),
         }
 
+        self.content_len = Some(0);
+
+        // TODO calculate size of Share struct in bytes
+
         Ok(())
+    }
+    pub fn write_to_stream(&mut self, stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>>{
+        let share = bincode::serialize(self)?;
+
+        stream.write(
+        format!("{}\n",
+                self.content_len.unwrap()
+            ).as_bytes()
+        )?;
+
+        println!("{}", self.content_len.unwrap());
+
+        //stream.write_all(&share[..])?;
+
+        Ok(())
+    }
+    pub fn read_from_stream(stream: &TcpStream) {
+
     }
 }
