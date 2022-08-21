@@ -1,6 +1,7 @@
-use std::{net::{TcpListener, TcpStream}, io::{Write, Read}};
+#![feature(buf_read_has_data_left)]
+use std::net::{TcpListener, TcpStream};
 
-use file_share::Command;
+use file_share::Share;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:34254").unwrap();
@@ -19,20 +20,17 @@ fn main() {
     }
 }
 
-fn handle_client(mut stream: TcpStream) {
-    // Read command `UPLOAD text.txt` `RECIEVE text.txt` `CATALOGUE`
-    // stream.read(buf);
+/// Only the official client will work for the most part so the server wont have
+/// to handle additional things like making sure your command was correct (this
+/// is checked on the official client)
+fn handle_client(stream: TcpStream) {
+    let share = match Share::read_from_stream(stream) {
+        Ok(share) => share,
+        Err(error) => {
+            eprintln!("{error}");
+            return;
+        }
+    };
 
-    // parse buf (Syntax checked on client side)
-
-    // let send = match 
-
-    // stream.write_all(send)
-
-    let mut buf = Vec::new();
-    stream.read_to_end(&mut buf).unwrap();
-    
-    let command = bincode::deserialize::<Command>(&buf[..]).unwrap();
-
-    println!("{:#?}", command);
+    println!("{:#?}", share);
 }

@@ -1,6 +1,6 @@
 #![feature(core_intrinsics)]
 
-use std::{process, fs::File, io::{Read, Write}, mem, net::TcpStream};
+use std::{process, fs::File, io::{Read, Write, BufReader, BufRead}, mem, net::TcpStream};
 
 use serde::{Deserialize, Serialize};
 
@@ -116,8 +116,6 @@ impl Command {
 pub struct Share {
     command: Command,
 
-    content_len: Option<usize>,
-
     /// Contains file data
     file: Option<Vec<u8>>,
     /// Contains text data, this is interpretted diferent ways depending on the
@@ -131,7 +129,6 @@ impl Share {
     pub fn new(command: Command) -> Share {
         Share { 
             command, 
-            content_len: None,
             file: None,
             text_data: None, 
             server_error_response: None 
@@ -150,28 +147,43 @@ impl Share {
             _ => eprintln!("Nothing to prepare"),
         }
 
-        self.content_len = Some(0);
-
-        // TODO calculate size of Share struct in bytes
-
         Ok(())
     }
     pub fn write_to_stream(&mut self, stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>>{
         let share = bincode::serialize(self)?;
 
+        // Calculate the size (in bytes) of the struct
+        let content_len = mem::size_of_val(&share[..]);
+
+        // Send a header containing the content length and a newline
         stream.write(
         format!("{}\n",
-                self.content_len.unwrap()
+                content_len
             ).as_bytes()
         )?;
 
-        println!("{}", self.content_len.unwrap());
+        stream.write_all(&share[..])?;
 
-        //stream.write_all(&share[..])?;
+        stream.flush()?;
 
         Ok(())
     }
-    pub fn read_from_stream(stream: &TcpStream) {
+    pub fn read_from_stream(mut stream: TcpStream) -> Result<Share, Box<dyn std::error::Error>> {
+        let mut share_len: String = String::new() ;
+        let mut buf_reader = BufReader::new(&mut stream);
+    
+        // Read header
+        buf_reader.read_line(&mut share_len)?;
 
+        let share_len: usize = share_len.trim().parse()?;
+
+        let mut share_bytes = Vec::new();
+        share_bytes.resize(share_len, 0);
+        
+        buf_reader.read_exact(&mut share_bytes)?;
+
+        stream.flush()?;
+
+        Ok(bincode::deserialize::<Share>(&share_bytes[..])?)
     }
 }
