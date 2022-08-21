@@ -7,3 +7,5 @@ edition = "2021"
 
 [dependencies]
 file_share = {path = "../file_share"}
+bincode = "1.3.3"
+serde = { version = "1.0.144", features = ["derive"]}

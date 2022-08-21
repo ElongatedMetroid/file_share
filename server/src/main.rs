@@ -1,5 +1,7 @@
 use std::{net::{TcpListener, TcpStream}, io::{Write, Read}};
 
+use file_share::Command;
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:34254").unwrap();
 
@@ -17,7 +19,7 @@ fn main() {
     }
 }
 
-fn handle_client(stream: TcpStream) {
+fn handle_client(mut stream: TcpStream) {
     // Read command `UPLOAD text.txt` `RECIEVE text.txt` `CATALOGUE`
     // stream.read(buf);
 
@@ -26,4 +28,11 @@ fn handle_client(stream: TcpStream) {
     // let send = match 
 
     // stream.write_all(send)
+
+    let mut buf = Vec::new();
+    stream.read_to_end(&mut buf).unwrap();
+    
+    let command = bincode::deserialize::<Command>(&buf[..]).unwrap();
+
+    println!("{:#?}", command);
 }

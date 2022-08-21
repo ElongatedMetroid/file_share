@@ -1,4 +1,6 @@
-#[derive(Debug, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum CommandType {
     // Runs on client
     Exit,
@@ -23,7 +25,7 @@ impl CommandType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Command {
     command_type: CommandType,
     arg: Option<String>,
