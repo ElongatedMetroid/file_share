@@ -26,3 +26,11 @@ cargo run
 cd file_share/server
 cargo run
 ```
+
+## Configurating
+To configure create a `Config.toml` file in the directory of which part you want to configure (client/server)
+
+### Example Configuration
+```
+(coming soon)
+```
