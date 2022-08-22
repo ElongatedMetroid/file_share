@@ -1,6 +1,6 @@
 #![feature(core_intrinsics)]
 
-use std::{process, fs::File, io::{Read, Write, BufReader, BufRead}, mem, net::TcpStream};
+use std::{process, fs::{File, self}, io::{Read, Write, BufReader, BufRead}, mem, net::TcpStream};
 
 use serde::{Deserialize, Serialize};
 
@@ -90,26 +90,12 @@ impl Command {
     pub fn command_type(&self) -> &CommandType {
         &self.command_type
     }
-    pub fn execute_client_side(&self) -> Result<(), &'static str> {
-        match *self.command_type() {
-            CommandType::Exit => {
-                process::exit(0);
-            }
-            CommandType::Help => {
-                println!(
-                    "{}\n{}\n{}\n{}\n{}",
-                    "----- Help Guide -----",
-                    "EXIT - Exit the client",
-                    "UPLOAD [file] - Upload a file to the server",
-                    "RECIEVE [file] - Recieve a file from the server",
-                    "CATALOGUE - Recieve a list of files from the server",
-                );
-            }
-            _ => return Err("Tried to execute serverside command on client"),
-        }
+}
 
-        Ok(())
-    }
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub enum Location {
+    Client,
+    Server,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -121,35 +107,21 @@ pub struct Share {
     /// Contains text data, this is interpretted diferent ways depending on the
     /// CommandType. This can be file names, the file catalogue, etc.
     text_data: Option<String>,
-    /// Is None when no error has occured
-    server_error_response: Option<String>,
+    server_response: ServerResponse,
+    current_location: Location,
 }
 
 impl Share {
-    pub fn new(command: Command) -> Share {
+    pub fn new(command: Command, current_location: Location) -> Share {
         Share { 
             command, 
             file: None,
             text_data: None, 
-            server_error_response: None 
+            server_response: ServerResponse::new(),
+            current_location
         }
     }
-    pub fn prepare_data(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        match *self.command.command_type() {
-            // Load file into vector
-            CommandType::Upload => {
-                let mut file = File::open(self.command.arg.as_ref().unwrap())?;
-
-                self.file = Some(Vec::new());
-                file.read_to_end(&mut self.file.as_mut().unwrap())?;
-            },  
-
-            _ => eprintln!("Nothing to prepare"),
-        }
-
-        Ok(())
-    }
-    pub fn write_to_stream(&mut self, stream: &mut TcpStream) -> Result<(), Box<dyn std::error::Error>>{
+    pub fn write_to_stream(&mut self, stream: &mut TcpStream, current_location: Location) -> Result<(), Box<dyn std::error::Error>>{
         let share = bincode::serialize(self)?;
 
         // Calculate the size (in bytes) of the struct
@@ -164,13 +136,13 @@ impl Share {
 
         stream.write_all(&share[..])?;
 
-        stream.flush()?;
+        self.current_location = current_location;
 
         Ok(())
     }
-    pub fn read_from_stream(mut stream: TcpStream) -> Result<Share, Box<dyn std::error::Error>> {
+    pub fn read_from_stream(stream: &mut TcpStream, current_location: Location) -> Result<Share, Box<dyn std::error::Error>> {
         let mut share_len: String = String::new() ;
-        let mut buf_reader = BufReader::new(&mut stream);
+        let mut buf_reader = BufReader::new(stream);
     
         // Read header
         buf_reader.read_line(&mut share_len)?;
@@ -182,8 +154,118 @@ impl Share {
         
         buf_reader.read_exact(&mut share_bytes)?;
 
-        stream.flush()?;
+        let mut share = bincode::deserialize::<Share>(&share_bytes[..])?;
 
-        Ok(bincode::deserialize::<Share>(&share_bytes[..])?)
+        share.current_location = current_location;
+
+        Ok(share)
+    }
+    pub fn prepare_data(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        match *self.command.command_type() {
+            CommandType::Exit => {
+                process::exit(0);
+            }
+            CommandType::Help => {
+                println!(
+                    "{}\n{}\n{}\n{}\n{}",
+                    "----- Help Guide -----",
+                    "EXIT - Exit the client",
+                    "UPLOAD [file] - Upload a file to the server",
+                    "RECIEVE [file] - Recieve a file from the server",
+                    "CATALOGUE - Recieve a list of files from the server",
+                );
+            }
+            // Load file into vector
+            CommandType::Upload if self.current_location == Location::Client => {
+                let mut file = File::open(self.command.arg.as_ref().unwrap())?;
+
+                self.file = Some(Vec::new());
+                file.read_to_end(&mut self.file.as_mut().unwrap())?;
+            },  
+
+            _ => eprintln!("Nothing to prepare"),
+        }
+
+        Ok(())
+    }
+    pub fn execute(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.command.command_type().is_client() {
+            println!("Server says: {:?}. STATUS: {:?}", self.server_response.text, self.server_response.status);
+        }
+
+        if self.server_response.status == ServerResponseStatus::Error {
+            return Ok(());
+        }
+
+        match *self.command.command_type() {
+            // Recieved a file from the server; Move file inside memory to storage
+            CommandType::Recieve if self.current_location == Location::Client => {
+                let mut file = File::create(self.command.arg.as_ref().unwrap())?;
+
+                file.write_all(&self.file.as_ref().unwrap())?;
+            }
+            // Send a file to the client; Move file inside storage to memory
+            CommandType::Recieve if self.current_location == Location::Server => {
+                let mut file = File::open(self.command.arg.as_ref().unwrap())?;
+
+                self.file = Some(Vec::new());
+                file.read_to_end(&mut self.file.as_mut().unwrap())?;
+            }
+            // Send a file to the client; Move file inside storage to memory
+            CommandType::Upload if self.current_location == Location::Server => {
+                let mut file = File::create(self.command.arg.as_ref().unwrap())?;
+
+                file.write_all(&self.file.as_ref().unwrap())?;
+            }
+            // Print text_data containing a list of files the server has
+            CommandType::Catalogue if self.current_location == Location::Client => {
+                println!("{}", self.text_data.as_ref().unwrap());
+            }
+            // Load text_data with a list of files the server has
+            CommandType::Catalogue if self.current_location == Location::Server => {
+                let paths = fs::read_dir(".")?;
+
+                for path in paths {
+                    self.text_data = Some(String::new());
+
+                    self.text_data.as_mut()
+                        .unwrap()
+                        .push_str(
+                            format!("{}\n", path?.path().display()).as_str().clone()
+                        );
+                }
+            }
+
+            _ => (),
+        }
+
+        Ok(())
+    }
+    pub fn set_error_response(&mut self, error: Box<dyn std::error::Error>) {
+        self.server_response.status = ServerResponseStatus::Error;
+        self.server_response.text = Some(error.to_string());
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+enum ServerResponseStatus {
+    Error,
+    Success,
+    None,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ServerResponse {
+    status: ServerResponseStatus,
+
+    text: Option<String>,
+}
+
+impl ServerResponse {
+    fn new() -> ServerResponse {
+        ServerResponse {
+            status: ServerResponseStatus::Success,
+            text: None,
+        }
     }
 }
