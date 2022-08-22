@@ -224,10 +224,9 @@ impl Share {
             // Load text_data with a list of files the server has
             CommandType::Catalogue if self.current_location == Location::Server => {
                 let paths = fs::read_dir(".")?;
+                self.text_data = Some(String::new());
 
                 for path in paths {
-                    self.text_data = Some(String::new());
-
                     self.text_data.as_mut()
                         .unwrap()
                         .push_str(
