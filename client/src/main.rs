@@ -1,8 +1,8 @@
-use std::{net::TcpStream, process, io};
+use std::{net::TcpStream, process, io::{self, Write}};
 
 use retry::{delay::Fixed, retry_with_index};
 
-use file_share::{Command, Share};
+use file_share::{Command, Share, Location};
 
 fn main() {
     let stream = 
@@ -44,12 +44,7 @@ fn handle_connection(mut stream: TcpStream) {
             }
         };
 
-        if command.command_type().is_client() {
-            command.execute_client_side().unwrap();
-            continue;
-        }
-
-        let mut share = Share::new(command);
+        let mut share = Share::new(command, Location::Client);
 
         // Load files into the vector, or text into the string
         match share.prepare_data() {
@@ -59,13 +54,22 @@ fn handle_connection(mut stream: TcpStream) {
                 continue;
             }
         }
-    
-        match share.write_to_stream(&mut stream) {
-            Ok(_) => (),
-            Err(error) => {
-                eprintln!("Unresolvable error: {error}");
-                process::exit(1);
-            }
-        }
+
+        share.write_to_stream(&mut stream, Location::Client).unwrap_or_else(|error| {
+            eprintln!("Unresolvable error: {error}");
+            process::exit(1);
+        });
+
+        stream.flush().unwrap();
+
+        let mut server_response_share = Share::read_from_stream(&mut stream, Location::Client).unwrap_or_else(|error| {
+            eprintln!("Unresolvable error: {error}");
+            process::exit(1);
+        });
+
+        server_response_share.execute().unwrap_or_else(|error| {
+            eprintln!("Unresolvable error: {error}");
+            process::exit(1);
+        });
     }
 }
