@@ -69,11 +69,10 @@ impl ShareCommand {
             "RECEIVE" => CommandType::Receive,
             "CATALOG" => CommandType::Catalog,
 
-            _ => {
+            unknown => {
                 return Err(
                     format!(
-                        "Parse error: Unknow command type: {}",
-                        command_tokens.next().unwrap()
+                        "Parse error: Unknow command type: {unknown}",
                     ).into()
                 );
             }
