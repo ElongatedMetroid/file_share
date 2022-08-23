@@ -1,20 +1,7 @@
 use std::{
     thread::{self, Builder}, 
     sync::{mpsc, Arc, Mutex},
-    error::Error,
-    fmt,
 };
-
-#[derive(Debug)]
-pub struct ZeroThreads;
-
-impl fmt::Display for ZeroThreads {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Attempted to create threadpool with 0 threads provided")
-    }
-}
-
-impl Error for ZeroThreads {}
 
 #[derive(Debug)]
 pub struct ThreadPool {
@@ -38,7 +25,7 @@ impl ThreadPool {
         // Return error if the pool was attempted to be created with no threads
         if size == 0 { 
             return Err(
-                Box::new(ZeroThreads)
+                String::from("Tried to create a pool with 0 threads").into()
             ) 
         }
 
