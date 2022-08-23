@@ -2,7 +2,7 @@ use std::{net::TcpStream, process, io::{self, Write}};
 
 use retry::{delay::Fixed, retry_with_index};
 
-use file_share::{Command, Share, Location};
+use file_share::{ShareCommand, Share, Location};
 
 fn main() {
     let stream = 
@@ -30,45 +30,61 @@ fn handle_connection(mut stream: TcpStream) {
     let mut buf = String::new();
 
     loop {
+        // Empty the buffer
         buf.clear();
 
         println!("Enter what you would like to do, run HELP for help");
 
+        // Read in the command
         io::stdin().read_line(&mut buf).unwrap_or_default();
 
-        let command = match Command::parse(buf.as_str()) {
+        // Parse the command into a Command struct
+        let command = match ShareCommand::parse(buf.as_str()) {
+            // Command was successfully parsed
             Ok(command) => command,
+            // Invalid command
             Err(error) => {
                 eprintln!("Please type a correct command, or HELP for help: {error}");
                 continue;
             }
         };
 
+        // Create a new share with the command we got above
         let mut share = Share::new(command, Location::Client);
 
-        // Load files into the vector, or text into the string
-        match share.prepare_data() {
-            Ok(_) => (),
-            Err(error) => {
-                eprintln!("Error occured while preparing data: {error}");
-                continue;
-            }
+        // Prepare data (if needed) for the specified command
+        if let Err(error) = share.prepare_data() {
+            // The error message should be clear to the user (file not found, is a directory, etc.) but better error handling will be 
+            // added later
+            eprintln!("Error occured while preparing data: {error}");
+            continue;
         }
 
+        // Write the share we prepared to the server/stream
         share.write_to_stream(&mut stream, Location::Client).unwrap_or_else(|error| {
-            eprintln!("Unresolvable error: {error}");
+            // will handle these errors later.
+            eprintln!("Error occurred: {error}");
             process::exit(1);
         });
 
-        stream.flush().unwrap();
+        // Make sure all buffered contents reach there destination
+        stream.flush().unwrap_or_else(|error| {
+            // will handle these errors later.
+            eprintln!("Error occurred: {error}");
+            process::exit(1);
+        });
 
+        // Read in the response the server send, this can contain requested files, text data, etc.
         let mut server_response_share = Share::read_from_stream(&mut stream, Location::Client).unwrap_or_else(|error| {
-            eprintln!("Unresolvable error: {error}");
+            // will handle these errors later.
+            eprintln!("Error occurred: {error}");
             process::exit(1);
         });
 
+        // If needed execute instructions to get data from the Share struct to storage, print some text data, etc.
         server_response_share.execute().unwrap_or_else(|error| {
-            eprintln!("Unresolvable error: {error}");
+            // will handle these errors later.
+            eprintln!("Error occurred: {error}");
             process::exit(1);
         });
     }
