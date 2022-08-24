@@ -2,9 +2,17 @@ use std::{net::TcpStream, process, io::{self, Write}};
 
 use retry::{delay::Fixed, retry_with_index};
 
-use file_share::{ShareCommand, Share, Location};
+use file_share::{ShareCommand, Share, Location, Config};
 
 fn main() {
+    let config = Config::build("Config.toml").unwrap_or_else(|error| {
+        eprintln!("Config build error: {error}");
+        process::exit(1);
+    }).client().unwrap_or_else(|error| {
+        eprintln!("Config build error: {error}");
+        process::exit(1);
+    });
+
     let stream = 
     // Retry connecting to the server 10 times, once every 1000 milliseconds
     retry_with_index(Fixed::from_millis(1000).take(9), |current_try| {

@@ -4,6 +4,9 @@ use std::{process, fs::{File, self}, io::{Read, Write, BufReader, BufRead}, mem,
 
 use serde::{Deserialize, Serialize};
 
+mod config;
+pub use config::Config;
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 /// Contains the type of the command
 pub enum CommandType {

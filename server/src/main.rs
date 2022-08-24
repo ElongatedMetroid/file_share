@@ -1,15 +1,23 @@
 #![feature(buf_read_has_data_left)]
 use std::{net::{TcpListener, TcpStream}, io::Write, process};
 
-use file_share::{Share, Location};
+use file_share::{Share, Location, Config};
 
 mod threadpool;
 
 use threadpool::ThreadPool;
 
 fn main() {
+    let config = Config::build("Config.toml").unwrap_or_else(|error| {
+        eprintln!("Config build error: {error}");
+        process::exit(1);
+    }).server().unwrap_or_else(|error| {
+        eprintln!("Config build error: {error}");
+        process::exit(1);
+    });
+
     // Create a new thread pool
-    let pool = match ThreadPool::build(5) {
+    let pool = match ThreadPool::build(config.thread_count()) {
         Ok(p) => p,
         // Thread pool could not be created
         Err(e) => {
@@ -33,7 +41,7 @@ fn main() {
     };
 
     // Create a TcpListener and attempt to bind to the given ip
-    let listener = match TcpListener::bind("127.0.0.1:34254") {
+    let listener = match TcpListener::bind(config.ip()) {
         // Binding to the address successs
         Ok(listener) => {
             println!("Listener bind success");
