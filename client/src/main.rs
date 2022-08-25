@@ -15,11 +15,11 @@ fn main() {
 
     let stream = 
     // Retry connecting to the server 10 times, once every 1000 milliseconds
-    retry_with_index(Fixed::from_millis(1000).take(9), |current_try| {
-        match TcpStream::connect("127.0.0.1:34254") {
+    retry_with_index(Fixed::from_millis(config.retry_delay()).take(config.retry_amount()), |current_try| {
+        match TcpStream::connect(config.server()) {
             Ok(stream) => Ok(stream),
             Err(error) => {
-                eprintln!("Connection to server failed, try: {current_try}");
+                eprintln!("Connection to server failed, attempt: {current_try}");
                 Err(error)
             },
         }

@@ -22,7 +22,10 @@ pub struct Server {
 
 #[derive(Deserialize, PartialEq)]
 pub struct Client {
-    servers: Vec<String>,
+    server: String,
+
+    retry_delay: u64,
+    retry_amount: usize,
 }
 
 impl Config {
@@ -54,5 +57,17 @@ impl Server {
     }
     pub fn ip_backups(&self) -> &Vec<String> {
         &self.ips
+    }
+}
+
+impl Client {
+    pub fn server(&self) -> &str {
+        &self.server
+    }
+    pub fn retry_amount(&self) -> usize {
+        self.retry_amount - 1
+    }
+    pub fn retry_delay(&self) -> u64 {
+        self.retry_delay
     }
 }
