@@ -41,19 +41,27 @@ fn main() {
     };
 
     // Create a TcpListener and attempt to bind to the given ip
-    let listener = match TcpListener::bind(config.ip()) {
-        // Binding to the address successs
-        Ok(listener) => {
-            println!("Listener bind success");
-            listener
-        },
-        // Binding to address fail
-        Err(error) => {
-            // TODO: Attempt to connect to backup ip
-            eprintln!("Failed in binding to address: {error}");
-            process::exit(1);
-        },
-    };
+    let listener = TcpListener::bind(config.ip()).unwrap_or_else(|error| {
+        eprintln!("Failed in binding to address: {error}. Trying to connect to backups");
+
+        // Loop through the vector of ip backups and try to connect to one until a success
+        for (i, ip) in config.ip_backups().into_iter().enumerate() {
+            match TcpListener::bind(ip) {
+                Ok(listener) => {
+                    println!("Backup ip: {i} successfully bound");
+                    return listener
+                }
+                Err(error) => {
+                    println!("Backup ip: {i} failed to bind: {error}");
+                    continue;
+                }
+            }
+        }
+
+        eprintln!("All backup ip's failed to bind!");
+
+        process::exit(1);
+    });
 
     // Loop through each connection
     for stream in listener.incoming() {
