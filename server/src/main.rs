@@ -45,7 +45,7 @@ fn main() {
         eprintln!("Failed in binding to address: {error}. Trying to connect to backups");
 
         // Loop through the vector of ip backups and try to connect to one until a success
-        for (i, ip) in config.ip_backups().into_iter().enumerate() {
+        for (i, ip) in config.ip_backups().iter().enumerate() {
             match TcpListener::bind(ip) {
                 Ok(listener) => {
                     println!("Backup ip: {i} successfully bound");
