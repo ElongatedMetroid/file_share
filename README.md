@@ -1,6 +1,8 @@
 # file_share
 Share files over Wi-Fi
 
+NOTE: This is a CLI application, for the GUI version please view my other repository https://github.com/NateNoNameSOFT/file_share_gui
+
 ## Installing
 
 ### Dependencies
